@@ -7,37 +7,51 @@
 
 
 struct command {
+    char* input;
     char* args;
     char* cmd;
-    int retval;
+    int index;
 };
 
-void parse(struct command *object,size_t buffsize) {
+void parse(struct command *object,size_t buffsize) { //Parse user's command-line input and write it to struct
     int num = 0;
     char* buff;
-    char* line;
+
     buff = (char *)malloc(buffsize * sizeof(char));
 
     for (int index = 0; index < buffsize; index = index + 1) {
-        if ((object->args)[index] != ' ') {
-            buff[num] = object->args[index];
+        if ((object->input)[index] != ' ') {
+            buff[num] = object->input[index];
             num = num + 1;
         }
     }
     
-    strcpy(object->args,buff);
+    strcpy(object->input,buff);
+
+    return;
+}
+
+void assignval(struct command *object) {  //Assign struct value
+    if (!strcmp(object->input,"date\n")){
+        object->cmd = "/bin/date";
+        object->args = "-u";
+        object->index = 1;
+    }
+    else if (!strcmp(object->input,"ls\n")){
+        object->cmd = "/bin/ls";
+        object->args = ".";
+        object->index = 2;
+    }
+    else {
+        object->index = 3;
+    }
 
     return;
 }
 
 int main(int argc, char *argv[])
 {
-    char *cmd1 = "/bin/date";
-    char *cmd2 = "/bin/ls";
-    char *args1[] = {cmd1, "-u", NULL};
-    char *args2[] = {cmd2, ".", NULL};
     char *buff;
-    char *line;
     int retval;
     struct command instance;
     size_t buffsize = 40;
@@ -45,36 +59,42 @@ int main(int argc, char *argv[])
 
     while (1) {
         printf("$sshell: ");
-        instance.args = (char *)malloc(buffsize * sizeof(char));
-        getline(&(instance.args),&buffsize,stdin);   //Get user command
+        instance.input = (char *)malloc(buffsize * sizeof(char));
+        getline(&(instance.input),&buffsize,stdin);   //Get user command
         parse(&instance,buffsize);
-
-        if (!strcmp(instance.args,"date\n")) {   //Accouts for /bin/date -u command
-            PID = fork();
-            if (PID == 0) {
-                retval = execv(cmd1,args1);
+        assignval(&instance);
+        char *args[] = {instance.cmd, instance.args, NULL};
+        switch(instance.index)
+        {
+            case 1:
+            {
+                PID = fork();
+                if (PID == 0) {
+                    retval = execv(instance.cmd,args);
+                }   
+                else {
+                    wait(&PID);
+                    fprintf(stderr, "+ completed '%s': [%d]\n", instance.cmd, retval);
+                }   
+                break;
             }
-            else {
-                wait(&PID);
-                fprintf(stderr, "+ completed '%s': [%d]\n", cmd1, retval);
+            case 2:
+            {
+                PID = fork();
+                if (PID == 0) {
+                    retval = execv(instance.cmd,args);
+                }
+                else {
+                    wait(&PID);
+                    fprintf(stderr, "+ completed '%s': [%d]\n",instance.cmd, retval);
+                }
+                break;
             }
-        }
-
-        else if (!strcmp(instance.args,"ls\n")) {
-            PID = fork();
-            if (PID == 0) {
-                retval = execv(cmd2,args2);
+            case 3:
+            {
+                perror("Ops");
             }
-            else {
-                wait(&PID);
-                fprintf(stderr, "+ completed '%s': [%d]\n", cmd2, retval);
-            }
-        }
-
-        else {
-            perror("command not found");
         }
     }
-
     return EXIT_SUCCESS;
 }
