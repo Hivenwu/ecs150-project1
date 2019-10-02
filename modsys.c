@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <string.h>
 #include "modsys.h"
+#define buffsize 100
 
 void assignval(struct command *object) {  //Assign struct value
     if (!strcmp(object->input,"date\n")){
@@ -21,10 +22,21 @@ void assignval(struct command *object) {  //Assign struct value
         object->index = 3;
     }
     else if (!strcmp(object->input,"pwd\n")) {
+        object->cmd = "pwd";
         object->index = 4;
     }
-    else {
+    else if (!strcmp(object->input,"cd")) {
+        object->cmd = object->input;
+        object->args = object->arguments;
         object->index = 5;
+    }
+    else if (!strcmp(object->input,"cat")) {
+        object->cmd = object->input;
+        object->args = object->arguments;
+        object->index = 6;
+    }
+    else {
+        object->index = 6;
     }
 
     return;
@@ -34,6 +46,7 @@ void assignval(struct command *object) {  //Assign struct value
 void modsys(struct command *instance) {
 
     pid_t PID;
+    int exitcode;
     char *args[] = {instance->cmd, instance->args, NULL};
 
     switch(instance->index)
@@ -68,14 +81,31 @@ void modsys(struct command *instance) {
                 exit(0);
             }
             case 4:
-            {
-                getcwd(instance->input,40);
+            {   
+                getcwd(instance->input,buffsize);
                 fprintf(stderr,"%s\n",instance->input);
-                fprintf(stderr, "+ completed '%s': [%d]\n",instance->cmd, EXIT_SUCCESS);
+                fprintf(stderr, "+ completed 'pwd': [%d]\n", EXIT_SUCCESS);
+                break;
             }
             case 5:
+            {   
+                exitcode = chdir(instance->arguments);  
+                if (exitcode != 0) {
+                    fprintf(stderr, "Error: no such directory\n");  
+                }
+                else {
+                    fprintf(stderr,"%s\n",getcwd(instance->arguments,100));
+                }
+                fprintf(stderr, "+ completed '%s %s': [%d]\n",instance->input,instance->arguments, abs(exitcode));
+                break;
+            }
+            case 6:
             {
-                perror("Ops");
+                
+            }
+            case 7:
+            {
+                
             }
         }
     

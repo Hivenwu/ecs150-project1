@@ -1,5 +1,6 @@
 struct command {
     char* input;
+    char* arguments;
     char* args;
     char* cmd;
     int index;
