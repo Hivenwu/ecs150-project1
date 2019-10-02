@@ -28,7 +28,6 @@ void parse(struct command *object,size_t buffsize) { //Parse user's command-line
 int main(int argc, char *argv[])
 {
     char *buff;
-    int retval;
     struct command instance;
     size_t buffsize = 40;
 

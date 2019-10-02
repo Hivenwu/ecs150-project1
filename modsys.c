@@ -17,8 +17,14 @@ void assignval(struct command *object) {  //Assign struct value
         object->args = ".";
         object->index = 2;
     }
-    else {
+    else if (!strcmp(object->input,"exit\n")) {
         object->index = 3;
+    }
+    else if (!strcmp(object->input,"pwd\n")) {
+        object->index = 4;
+    }
+    else {
+        object->index = 5;
     }
 
     return;
@@ -27,7 +33,6 @@ void assignval(struct command *object) {  //Assign struct value
 
 void modsys(struct command *instance) {
 
-    int retval;
     pid_t PID;
     char *args[] = {instance->cmd, instance->args, NULL};
 
@@ -37,11 +42,11 @@ void modsys(struct command *instance) {
             {
                 PID = fork();
                 if (PID == 0) {
-                    retval = execv(instance->cmd,args);
+                    execv(instance->cmd,args);
                 }   
                 else {
                     wait(&PID);
-                    fprintf(stderr, "+ completed '%s': [%d]\n", instance->cmd, retval);
+                    fprintf(stderr, "+ completed '%s': [%d]\n", instance->cmd, EXIT_SUCCESS);
                 }   
                 break;
             }
@@ -49,15 +54,26 @@ void modsys(struct command *instance) {
             {
                 PID = fork();
                 if (PID == 0) {
-                    retval = execv(instance->cmd,args);
+                    execv(instance->cmd,args);
                 }
                 else {
                     wait(&PID);
-                    fprintf(stderr, "+ completed '%s': [%d]\n",instance->cmd, retval);
+                    fprintf(stderr, "+ completed '%s': [%d]\n",instance->cmd, EXIT_SUCCESS);
                 }
                 break;
             }
             case 3:
+            {
+                printf("Bye...\n");
+                exit(0);
+            }
+            case 4:
+            {
+                getcwd(instance->input,40);
+                fprintf(stderr,"%s\n",instance->input);
+                fprintf(stderr, "+ completed '%s': [%d]\n",instance->cmd, EXIT_SUCCESS);
+            }
+            case 5:
             {
                 perror("Ops");
             }
