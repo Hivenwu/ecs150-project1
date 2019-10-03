@@ -7,105 +7,103 @@
 #include "modsys.h"
 #define buffsize 100
 
-void assignval(struct command *object) {  //Assign struct value
-    if (!strcmp(object->input,"date\n")){
-        object->cmd = "/bin/date";
-        object->args = "-u";
-        object->index = 1;
-    }
-    else if (!strcmp(object->input,"ls\n")){
-        object->cmd = "/bin/ls";
-        object->args = ".";
-        object->index = 2;
-    }
-    else if (!strcmp(object->input,"exit\n")) {
-        object->index = 3;
-    }
-    else if (!strcmp(object->input,"pwd\n")) {
-        object->cmd = "pwd";
-        object->index = 4;
-    }
-    else if (!strcmp(object->input,"cd")) {
-        object->cmd = object->input;
-        object->args = object->arguments;
-        object->index = 5;
-    }
-    else if (!strcmp(object->input,"cat")) {
-        object->cmd = object->input;
-        object->args = object->arguments;
-        object->index = 6;
-    }
-    else {
-        object->index = 6;
-    }
 
-    return;
+enum execu_type execu_determine(struct command **object) {
+    if (!strcmp((*object)[0].command,"date")) {
+        return COMMAND_DATE;
+    }
+    else if (!strcmp((*object)[0].command,"ls")) {  
+        return COMMAND_LS;
+    }
+    else if (!strcmp((*object)[0].command,"cd")) {
+        return COMMAND_CD;
+    }
+    else if (!strcmp((*object)[0].command,"pwd")) {
+        return COMMAND_PWD;
+    }
+    else if (!strcmp((*object)[0].command,"exit")) {
+        return COMMAND_EXIT;
+    }
+    return COMMAND_UNDEF;
 }
 
 
-void modsys(struct command *instance) {
+void modsys(struct command **object) {
 
     pid_t PID;
     int exitcode;
-    char *args[] = {instance->cmd, instance->args, NULL};
+    char* argv[] = {(*object)[0].command,(*object)[0].args,NULL};
 
-    switch(instance->index)
+    switch(execu_determine(object))
         {
-            case 1:
+            case COMMAND_DATE:
             {
                 PID = fork();
+                
                 if (PID == 0) {
-                    execv(instance->cmd,args);
+                    char* argv2[] = {"-u",NULL};
+                    execv("/bin/date",argv2);
                 }   
                 else {
                     wait(&PID);
-                    fprintf(stderr, "+ completed '%s': [%d]\n", instance->cmd, EXIT_SUCCESS);
-                }   
-                break;
+                    fprintf(stderr, "+ completed '%s': [%d]\n", (*object)[0].command, EXIT_SUCCESS);
+                }
+                return;
             }
-            case 2:
+            case COMMAND_LS:
             {
                 PID = fork();
                 if (PID == 0) {
-                    execv(instance->cmd,args);
+                    if (!strcmp((*object)[0].args,"")){
+                        char* argv3[] = {".",NULL};
+                        execv("/bin/ls",argv3);
+                    }
+                    else{
+                        execv("/bin/ls",argv);
+                    }
+                    
                 }
                 else {
                     wait(&PID);
-                    fprintf(stderr, "+ completed '%s': [%d]\n",instance->cmd, EXIT_SUCCESS);
+                    if (!strcmp((*object)[0].args,"")){
+                        fprintf(stderr, "+ completed '%s': [%d]\n",(*object)[0].command,EXIT_SUCCESS);
+                    }
+                    else{
+                        fprintf(stderr, "+ completed '%s %s': [%d]\n",(*object)[0].command,(*object)[0].args,EXIT_SUCCESS);
+                    }
                 }
-                break;
+                return;
             }
-            case 3:
+            case COMMAND_EXIT:
             {
                 printf("Bye...\n");
                 exit(0);
             }
-            case 4:
+            case COMMAND_PWD:
             {   
-                getcwd(instance->input,buffsize);
-                fprintf(stderr,"%s\n",instance->input);
+                char* address = (char *)malloc(buffsize * sizeof(char));
+                getcwd(address,buffsize);
+                fprintf(stderr,"%s\n",address);
                 fprintf(stderr, "+ completed 'pwd': [%d]\n", EXIT_SUCCESS);
-                break;
+                return;
             }
-            case 5:
+            case COMMAND_CD:
             {   
-                exitcode = chdir(instance->arguments);  
+                exitcode = chdir((*object)[0].args);  
                 if (exitcode != 0) {
                     fprintf(stderr, "Error: no such directory\n");  
                 }
                 else {
-                    fprintf(stderr,"%s\n",getcwd(instance->arguments,100));
+                    fprintf(stderr,"%s\n",getcwd((*object)[0].args,100));
                 }
-                fprintf(stderr, "+ completed '%s %s': [%d]\n",instance->input,instance->arguments, abs(exitcode));
-                break;
+                fprintf(stderr, "+ completed '%s %s': [%d]\n",(*object)[0].command,(*object)[0].args, abs(exitcode));
+                return;
             }
-            case 6:
+            case COMMAND_UNDEF:
             {
-                
-            }
-            case 7:
-            {
-                
+                fprintf(stderr, "Error: command not found\n"); 
+                fprintf(stderr, "+ completed '%s %s': [%d]\n",(*object)[0].command,(*object)[0].args, EXIT_FAILURE);
+                return;
             }
         }
     

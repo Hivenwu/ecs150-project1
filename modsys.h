@@ -1,12 +1,19 @@
 struct command {
-    char* input;
-    char* arguments;
+    char* command;
     char* args;
-    char* cmd;
-    int index;
 };
 
-void assignval(struct command *object);
-void modsys(struct command *instance);
+enum execu_type {
+    COMMAND_DATE,
+    COMMAND_LS,
+    COMMAND_PWD,
+    COMMAND_EXIT,
+    COMMAND_CD,
+    COMMAND_UNDEF,
+};
+
+
+enum execu_type execu_determine(struct command **object);
+void modsys(struct command **object);
 
 

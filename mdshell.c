@@ -4,60 +4,123 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <stdbool.h>
 #include "modsys.h"
+#define buffnum 40
 
-void parse(struct command *object,size_t buffsize) { //Parse user's command-line input and write it to struct
-    int numc = 0;
-    int numarg = 0;
-    int command = 0;
-    int arguments = 0;
-    char* buffc;
-    char* buffarg;
+int pipesize(char* input) {
+    int commandsize = 1;
 
-    buffc = (char *)malloc(buffsize * sizeof(char));
-    buffarg = (char *)malloc(buffsize * sizeof(char));
-
-    for (int index = 0; index < buffsize; index = index + 1) {
-        if ((object->input)[index] != ' ' && arguments == 0) {
-            command = 1;
-            buffc[numc] = object->input[index];
-            numc = numc + 1;
+    for (int index = 0; index < buffnum; index = index + 1) {
+        if (input[index] == '|') {
+            commandsize = commandsize + 1;
         }
-        else if (command && (object->input)[index] == ' ' && (object->input)[index+1] != '\n' && (object->input)[index+1] != ' ') {
-            arguments = 1;
-        }
-        else if ((object->input)[index] != ' ' && arguments != 0 && command != 0) {
-            if ((object->input)[index] == '\n') {
-                break;
-            }
-            buffarg[numarg] = object->input[index];
-            numarg = numarg + 1;
-        }
-
-        
     }
     
-    strcpy(object->input,buffc);
-    strcpy(object->arguments,buffarg);
+    return commandsize;
+}
+
+void parse(struct command **object,char* input,int commandnum) { //Parse user's command-line input and write it to struct
+
+    
+    char* args;
+    char* command;
+    int argsi = 0;
+    int commandi = 0;
+    int objecti = 0;
+    bool arg_detect = false;
+    bool command_detect = false;
+    bool pipe_detect = false;
+
+    args = (char *)malloc(buffnum * sizeof(char));
+    command = (char *)malloc(buffnum * sizeof(char));
+
+    
+    *object = malloc(commandnum*sizeof(struct command));
+    
+
+    for (int i = 0; i < commandnum; i = i + 1) {
+        (*object)[i].args = (char *)malloc(buffnum * sizeof(char));
+        (*object)[i].command = (char *)malloc(buffnum * sizeof(char));
+    }
+
+    for (int index = 0; index <= buffnum; index = index + 1) {
+    
+
+        if (input[index] != ' ') {
+            if (input[index] == '\n') {
+                strcpy((*object)[objecti].args,args);
+                strcpy((*object)[objecti].command,command);
+                return;
+            }
+            else if (!command_detect && input[index] != '|') {
+                command_detect = true;
+                command[commandi] = input[index];
+                commandi = commandi + 1;
+            }
+            else if (!arg_detect && command_detect) {
+                command[commandi] = input[index];
+                commandi = commandi + 1;
+            }
+            else if (input[index] != ' ' && input[index] != '|' && arg_detect && command_detect) {
+                args[argsi] = input[index];
+                argsi = argsi + 1;
+            }
+            else if (input[index] == '|') {
+                strcpy((*object)[objecti].args,args);
+                strcpy((*object)[objecti].command,command);
+                arg_detect = false;
+                command_detect = false;
+                objecti = objecti + 1;
+                memset(command, 0, buffnum);
+                memset(args, 0, buffnum);
+                commandi = 0;
+                argsi = 0;
+            }
+        }
+        else if (input[index] == ' ') {
+            if (!arg_detect && command_detect) {
+                arg_detect = true;
+            }
+        }
+        
+
+    }
+
     return;
 }
+
+/*void printcontent(struct command **object,int commandnum) {
+    
+    for (int i = 0; i < commandnum; i = i + 1) {
+        printf("%s\n",(*object)[i].command);
+        printf("%s\n",(*object)[i].args);
+        printf("\n");
+    }
+    return;
+} */
+
+
 
 
 int main(int argc, char *argv[])
 {
-    char *buff;
-    struct command instance;
+    int commandnum;
     size_t buffsize = 40;
-    instance.input = (char *)malloc(buffsize * sizeof(char));
-    instance.arguments = (char *)malloc(buffsize * sizeof(char));
+    
+    char *input = (char *)malloc(buffsize * sizeof(char));
+    
+    
 
     while (1) {
         printf("$sshell: ");
-        getline(&(instance.input),&buffsize,stdin);   //Get user command
-        parse(&instance,buffsize);
-        assignval(&instance);
+        struct command *list;
+        getline(&input,&buffsize,stdin);   //Get user command
+        
+        commandnum = pipesize(input);
+        parse(&list,input,commandnum);
         //The switch statement is used to determine which command-line operation to run.
-        modsys(&instance);
+        modsys(&list);
     }
     return EXIT_SUCCESS;
 }
