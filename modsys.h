@@ -1,6 +1,9 @@
+#include <stdbool.h>
+
 struct command {
     char* command;
     char* args;
+    bool background;
 };
 
 enum execu_type {
@@ -13,7 +16,9 @@ enum execu_type {
 };
 
 
-enum execu_type execu_determine(struct command **object);
-void modsys(struct command **object);
+enum execu_type execu_determine(struct command **object,int commandnum);
+void modsys(struct command **object,int commandnum);
+void external_modsys(struct command **object,bool print);
+int pipe_recur(struct command **obejct,int **fd,int *i,int commandnum);
 
 
