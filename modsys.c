@@ -10,19 +10,19 @@
 
 enum execu_type execu_determine(struct command **object,int commandnum) {
     
-    if (!strcmp((*object)[0].command,"date")) {
+    if (!strcmp((*object)[0].args[0],"date")) {
         return COMMAND_DATE;
     }
-    else if (!strcmp((*object)[0].command,"ls")) {  
+    else if (!strcmp((*object)[0].args[0],"ls")) {  
         return COMMAND_LS;
     }
-    else if (!strcmp((*object)[0].command,"cd")) {
+    else if (!strcmp((*object)[0].args[0],"cd")) {
         return COMMAND_CD;
     }
-    else if (!strcmp((*object)[0].command,"pwd")) {
+    else if (!strcmp((*object)[0].args[0],"pwd")) {
         return COMMAND_PWD;
     }
-    else if (!strcmp((*object)[0].command,"exit")) {
+    else if (!strcmp((*object)[0].args[0],"exit")) {
         return COMMAND_EXIT;
     }
     return COMMAND_UNDEF;
@@ -52,170 +52,117 @@ enum execu_type execu_determine(struct command **object,int commandnum) {
 void modsys(struct command **object,int commandnum) {
     pid_t PID;
     int exitcode;
-    int *fd;
+    int **fd;
     int i = 0;
     int fdcounter = 0;
 
 
 
     if (commandnum == 1) {
-        if (!strcmp((*object)[0].command,"pwd") || !strcmp((*object)[0].command,"cd") || !strcmp((*object)[0].command,"exit")) {
+        if (!strcmp((*object)[0].args[0],"pwd") || !strcmp((*object)[0].args[0],"cd") || !strcmp((*object)[0].args[0],"exit")) {
             external_modsys(object,true);
             return;
         }
         
-        char* argv[] = {(*object)[0].command,(*object)[0].args,NULL};
         char* dir = (char *)malloc(buffsize * sizeof(char));
         strcat(dir,"/bin/");
-        strcat(dir,(*object)[0].command);
+        strcat(dir,(*object)[0].args[0]);
         PID = fork();
         if (PID == 0) {
-            execv(dir,argv);
+            execv(dir,(*object)[0].args);
         }
         else {
             wait(&PID);
-            fprintf(stderr, "+ completed '%s': [%d]\n", (*object)[0].command, EXIT_SUCCESS);
+            fprintf(stderr, "+ completed '%s': [%d]\n", (*object)[0].args[0], EXIT_SUCCESS);
         }
     }
 
     else {
-        fd = (int *)malloc(commandnum*sizeof(int));
-        while(pipe_recur(object,&fd,&i,commandnum) < commandnum) {
+        fd = (int **)malloc(commandnum*sizeof(int *));
+        int* pid_array = (int *)malloc(commandnum*sizeof(int));
+
+        for (int i = 0; i <= commandnum; i ++) {
+            fd[i] = (int*)malloc(2*sizeof(int));
         }
+        PID = fork();
+        if (PID == 0) {
+            pipe_recur(object,&fd,&pid_array,0,0,commandnum);
+            
+        }
+        else{
+           wait(&PID); 
+            for (int i = 0;i <= commandnum-1; i++) {
+                wait(&(pid_array[i]));     
+            }
+            
+        }
+        return;
     }
 
+    return;
+}
+
+
+void pipe_recur(struct command **object,int ***fd,int** pid_array,int pipei,int commandi,int commandnum) {
+  
     
-}
+    int i;
+    pid_t PID;
+    char* dir = (char *)malloc(buffsize * sizeof(char));
+    strcat(dir,"/bin/");
 
-int pipe_recur(struct command **object,int **fd,int *i,int commandnum) {
+    for (i = 0; i <= commandnum - 1; i = i+1) {
+        
 
-        char* dir = (char *)malloc(buffsize * sizeof(char));
-        strcat(dir,"/bin/");
-        int savein = dup(STDIN_FILENO);
-        int saveout = dup(STDOUT_FILENO);
-        pid_t mainprocess = fork();
-
-
-        if (mainprocess == 0) {
-            if (*i == commandnum - 1) {
-                close(STDIN_FILENO);            /* Close existing stdin */        
-                dup((*fd)[0]);
-                close((*fd)[0]);                     /* And replace it with the pipe */                         /* Close now unused file descriptor *            /* Replace stdout with the pipe */        
-                char* argv[] = {(*object)[*i].command,(*object)[*i].args,NULL};  
-                strcat(dir,(*object)[*i].command);
-                if (!strcmp((*object)[*i].command,"pwd") || !strcmp((*object)[*i].command,"cd") || !strcmp((*object)[*i].command,"exit")) {
-                    char* dir2 = (char *)malloc(buffsize * sizeof(char));
-                    strcat(dir2,"./external_syscall");
-                    char* argv1[] = {(*object)[*i].command,(*object)[*i].args,false,NULL}; 
-                    execv(dir2,argv1);
-                    perror("Error0:");
-                    exit(1);
-                }
-                execv(dir,argv);
-                perror("Error1:");
-                exit(1);
+        pipe((*fd)[i]);
+        PID = fork();
+        if(PID == 0) {
+            if (i == 0) {
+                char* dir = (char *)malloc(buffsize * sizeof(char));
+                strcat(dir,"/bin/");
+                dup2((*fd)[i][1],STDOUT_FILENO);
+                close((*fd)[i][0]);
+                strcat(dir,(*object)[i].args[0]);
+                execvp(dir,(*object)[i].args);
+                perror("Error1: ");
+                exit(EXIT_FAILURE);
             }
-            else if (*i == commandnum - 2) {
-                pipe(*fd);
-                if (fork() != 0) {/* Parent */
-                    if (commandnum != 2) {
-                        close(STDIN_FILENO);
-                        dup((*fd)[0]);
-                        close((*fd)[0]);
-                    }
-                    close((*fd)[0]);
-                    dup2((*fd)[1], STDOUT_FILENO);     /* Replace stdout with the pipe */        
-                    close((*fd)[1]); 
-                    char* argv2[] = {(*object)[*i].command,(*object)[*i].args,NULL};  
-                    strcat(dir,(*object)[*i].command);
-                    if (!strcmp((*object)[*i].command,"pwd") || !strcmp((*object)[*i].command,"cd") || !strcmp((*object)[*i].command,"exit")) {
-                        char* dir2 = (char *)malloc(buffsize * sizeof(char));
-                        strcat(dir2,"./external_syscall");
-                        char* argv3[] = {(*object)[*i].command,(*object)[*i].args,false,NULL}; 
-                        execv(dir2,argv3);
-                        perror("Error2:");
-                        exit(1);
-                    } 
-                    execv(dir,argv2);
-                    perror("Error2:");
-                    exit(1);
-                } 
-                else {/* Child */       
-                    close(STDIN_FILENO);            /* Close existing stdin */        
-                    dup((*fd)[0]);                     /* And replace it with the pipe */        
-                    close((*fd)[0]);                   /* Close now unused file descriptor*/             /* Replace stdout with the pipe */        
-                    char* argv4[] = {(*object)[*i+1].command,(*object)[*i+1].args,NULL};  
-                    strcat(dir,(*object)[*i+1].command);
-                    if (!strcmp((*object)[*i+1].command,"pwd") || !strcmp((*object)[*i+1].command,"cd") || !strcmp((*object)[*i+1].command,"exit")) {
-                        char* dir2 = (char *)malloc(buffsize * sizeof(char));
-                        strcat(dir2,"./external_syscall");
-                        char* argv5[] = {(*object)[*i+1].command,(*object)[*i+1].args,false,NULL}; 
-                        execv(dir2,argv5);
-                        perror("Error2:");
-                        exit(1);
-                    }
-                    execv(dir,argv4);
-                    perror("Error3:");
-                    exit(1);
-                    }
-                }
+            else if (i == commandnum - 1) {
+                char* dir3 = (char *)malloc(buffsize * sizeof(char));
+                strcat(dir3,"/bin/");
+                dup2((*fd)[i-1][0],STDIN_FILENO);
+                close((*fd)[i-1][0]);
+                close((*fd)[i-1][1]);
+                strcat(dir3,(*object)[i].args[0]);
+                execv(dir3,(*object)[i].args); 
+                perror("Error2: ");
+                exit(EXIT_FAILURE);
+            }
             else {
-                pipe(*fd);
-                if (fork() != 0) {/* Parent */
-                    close(STDIN_FILENO);
-                    dup((*fd)[0]); 
-                    dup2((*fd)[1], STDOUT_FILENO);     /* Replace stdout with the pipe */        
-                    char* argv6[] = {(*object)[*i].command,(*object)[*i].args,NULL};  
-                    strcat(dir,(*object)[*i].command);
-                    close((*fd)[0]);
-                    close((*fd)[1]);
-                    if (!strcmp((*object)[*i].command,"pwd") || !strcmp((*object)[*i].command,"cd") || !strcmp((*object)[*i].command,"exit")) {
-                        char* dir2 = (char *)malloc(buffsize * sizeof(char));
-                        strcat(dir2,"./external_syscall");
-                        char* argv7[] = {(*object)[*i].command,(*object)[*i].args,false,NULL}; 
-                        execv(dir2,argv7);
-                        perror("Error2:");
-                        exit(1);
-                    }
-                    execv(dir,argv6);
-                    perror("Error4:");
-                    exit(1);
-                } 
-                else {/* Child */       
-                    close(STDIN_FILENO);            /* Close existing stdin */        
-                    dup((*fd)[0]);
-                    close((*fd)[0]);                     /* And replace it with the pipe */                         /* Close now unused file descriptor *            /* Replace stdout with the pipe */        
-                    char* argv8[] = {(*object)[*i+1].command,(*object)[*i+1].args,NULL};  
-                    strcat(dir,(*object)[*i+1].command);
-                    dup2((*fd)[1],STDOUT_FILENO);
-                    if (!strcmp((*object)[*i+1].command,"pwd") || !strcmp((*object)[*i+1].command,"cd") || !strcmp((*object)[*i+1].command,"exit")) {
-                        char* dir2 = (char *)malloc(buffsize * sizeof(char));
-                        strcat(dir2,"./external_syscall");
-                        char* argv9[] = {(*object)[*i+1].command,(*object)[*i+1].args,false,NULL}; 
-                        execv(dir2,argv9);
-                        perror("Error2:");
-                        exit(1);
-                    }
-                    execv(dir,argv8);
-                    perror("Error5:");
-                    exit(1);
-                }        
+                char* dir2 = (char *)malloc(buffsize * sizeof(char));
+                strcat(dir2,"/bin/");
+                dup2((*fd)[i-1][0],STDIN_FILENO);
+                dup2((*fd)[i][1],STDOUT_FILENO);
+                close((*fd)[i-1][1]);
+                close((*fd)[i][0]);
+                strcat(dir2,(*object)[i].args[0]);
+                execvp(dir2,(*object)[i].args);
+                perror("Error3: ");
+                exit(EXIT_FAILURE);
             }
+            printf("I breached through...\n");
         }
-        else {
-            wait(&mainprocess);
-            dup2(savein,STDIN_FILENO);
-            dup2(saveout,STDOUT_FILENO);
-            *i = *i + 2;
-            return *i;
+        else{
+            (*pid_array)[i] = PID;
         }
-        *i = *i + 2;
-        return *i;
+    }  
+    return;
 }
+    
 
 void external_modsys(struct command **object,bool print) {
     
-    if (!strcmp((*object)[0].command,"pwd")) {
+    if (!strcmp((*object)[0].args[0],"pwd")) {
         char* address = (char *)malloc(buffsize * sizeof(char));
         getcwd(address,buffsize);
         if (print) {
@@ -227,26 +174,26 @@ void external_modsys(struct command **object,bool print) {
         }
         return;
     }
-    else if (!strcmp((*object)[0].command,"cd")) {
-        int exitcode = chdir((*object)[0].args);  
+    else if (!strcmp((*object)[0].args[0],"cd")) {
+        int exitcode = chdir((*object)[0].args[1]);  
         if (exitcode != 0) {
             fprintf(stderr, "Error: no such directory\n");  
         }
         else {
-            fprintf(stderr,"%s\n",getcwd((*object)[0].args,100));
+            fprintf(stderr,"%s\n",getcwd((*object)[0].args[1],100));
         }
         if (print){
-            fprintf(stderr, "+ completed '%s %s': [%d]\n",(*object)[0].command,(*object)[0].args, abs(exitcode));
+            fprintf(stderr, "+ completed '%s %s': [%d]\n",(*object)[0].args[0],(*object)[0].args[1], abs(exitcode));
         }
         return;
     }
-    else if (!strcmp((*object)[0].command,"exit")) {
+    else if (!strcmp((*object)[0].args[0],"exit")) {
         printf("Bye...\n");
         exit(0);
     }
     else {
         fprintf(stderr, "Error: command not found\n"); 
-        fprintf(stderr, "+ completed '%s %s': [%d]\n",(*object)[0].command,(*object)[0].args, EXIT_FAILURE);
+        fprintf(stderr, "+ completed '%s %s': [%d]\n",(*object)[0].args[0],(*object)[0].args[1], EXIT_FAILURE);
         return;
     }
     return;

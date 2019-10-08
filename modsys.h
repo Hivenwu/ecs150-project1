@@ -1,8 +1,9 @@
+
 #include <stdbool.h>
 
 struct command {
-    char* command;
-    char* args;
+    char** args;
+    int argc;
     bool background;
 };
 
@@ -19,6 +20,6 @@ enum execu_type {
 enum execu_type execu_determine(struct command **object,int commandnum);
 void modsys(struct command **object,int commandnum);
 void external_modsys(struct command **object,bool print);
-int pipe_recur(struct command **obejct,int **fd,int *i,int commandnum);
+void pipe_recur(struct command **obejct,int ***fd,int** pid_array,int pipei,int commandi,int commandnum);
 
 
