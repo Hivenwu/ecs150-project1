@@ -80,21 +80,16 @@ void modsys(struct command **object,int commandnum) {
     }
 
     else {
-        
-        fd = (int **)malloc(commandnum*sizeof(int *));
-       
-        for (int i = 0; i <= commandnum - 1; i ++) {
-            fd[i] = (int*)malloc(2*sizeof(int));
-        }
 
         PID = fork();
         if (PID == 0) {
-            pipe_recur(object,&fd,&pid_array,0,0,commandnum);
+            pipe_recur(object,&pid_array,0,0,commandnum);
             exit(0);
         }
         else{
             waitpid(PID,&status,0);
         }
+        
         return;
     }
 
@@ -102,68 +97,57 @@ void modsys(struct command **object,int commandnum) {
 }
 
 
-void pipe_recur(struct command **object,int ***fd,int** pid_array,int pipei,int commandi,int commandnum) {
+void pipe_recur(struct command **object,int** pid_array,int pipei,int commandi,int commandnum) {
   
     int status;
-    int i;
+    int t = 0;
     pid_t PID;
+    int fd[commandnum][2];
     char* dir = (char *)malloc(buffsize * sizeof(char));
     strcat(dir,"/bin/");
 
-    for (i = 0; i <= commandnum - 1; i = i+1) {
-
-        pipe((*fd)[i]); 
+    for (int i = 0; i <= commandnum - 1; i = i+1) {
+        pipe(fd[i]);
         PID = fork();
         if(PID == 0) {
+            char* dir2 = (char *)malloc(buffsize * sizeof(char));
             if (i == 0) {
-                char* dir = (char *)malloc(buffsize * sizeof(char));
-                strcat(dir,"/bin/");
-                dup2((*fd)[i][1],STDOUT_FILENO);
-                close((*fd)[i][0]);
-                close((*fd)[i][1]);
-                strcat(dir,(*object)[i].args[0]);
-                execvp(dir,(*object)[i].args);
-                perror("Error1: ");
-                exit(EXIT_FAILURE);
+                close(fd[i][0]);
+                dup2(fd[i][1],STDOUT_FILENO);
+                close(fd[i][1]);
             }
             else if (i == commandnum - 1) {
-                char* dir3 = (char *)malloc(buffsize * sizeof(char));
-                strcat(dir3,"/bin/");
-                dup2((*fd)[i-1][0],STDIN_FILENO);
-                close((*fd)[i][0]);
-                close((*fd)[i][1]);
-                close((*fd)[i-1][0]);
-                close((*fd)[i-1][1]);
-                strcat(dir3,(*object)[i].args[0]);
-                execvp(dir3,(*object)[i].args); 
-                perror("Error2: ");
-                exit(EXIT_FAILURE);
+                close(fd[i-1][1]);
+                dup2(fd[i-1][0],STDIN_FILENO);
+                close(fd[i-1][0]);
             }
             else {
-                char* dir2 = (char *)malloc(buffsize * sizeof(char));
-                strcat(dir2,"/bin/");
-                dup2((*fd)[i-1][0],STDIN_FILENO);
-                dup2((*fd)[i][1],STDOUT_FILENO);
-                close((*fd)[i-1][0]);
-                close((*fd)[i-1][1]);
-                close((*fd)[i][0]);
-                close((*fd)[i][0]);
-                strcat(dir2,(*object)[i].args[0]);
-                execvp(dir2,(*object)[i].args);
-                perror("Error3: ");
-                exit(EXIT_FAILURE);
+                close(fd[i-1][1]);
+                dup2(fd[i-1][0],STDIN_FILENO);
+                close(fd[i-1][0]);
+                close(fd[i][0]);
+                dup2(fd[i][1],STDOUT_FILENO);
+                close(fd[i][1]);
             }
-            
+                
+            strcat(dir2,(*object)[i].args[0]);
+            execvp(dir2,(*object)[i].args);
+            perror("Error3: ");
+            exit(EXIT_FAILURE);
+
         }
         else{
             (*pid_array)[i] = PID;
         }
-        
+        while (t <= i - 1) {
+            close(fd[t][1]);
+            close(fd[t][0]);
+            t = t + 1;
+        }
     }
 
     for (int k = 0; k <= commandnum - 2 ; k++) {
-        waitpid((*pid_array)[k],&status,0);
-        printf("I am %d\n",k);
+        waitpid((*pid_array)[k],&status,WUNTRACED);
     }
 
     return;
