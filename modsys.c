@@ -7,47 +7,19 @@
 #include "modsys.h"
 #define buffsize 100
 
+bool background(struct  command **object) {
+    for (int i = 1; i < (*object)[0].argc - 1; i = i + 1) {
+        for (int k = 0; k < strlen((*object)[0].args[i]); k++) {
+            if ((*object)[0].args[i][k] == '&') {
+                (*object)[0].args[i][k] = '\0';
+                (*object)[0].args[i][k+1] = 0;
+                return true;
+            }
+        }
+    }
 
-enum execu_type execu_determine(struct command **object,int commandnum) {
-    
-    if (!strcmp((*object)[0].args[0],"date")) {
-        return COMMAND_DATE;
-    }
-    else if (!strcmp((*object)[0].args[0],"ls")) {  
-        return COMMAND_LS;
-    }
-    else if (!strcmp((*object)[0].args[0],"cd")) {
-        return COMMAND_CD;
-    }
-    else if (!strcmp((*object)[0].args[0],"pwd")) {
-        return COMMAND_PWD;
-    }
-    else if (!strcmp((*object)[0].args[0],"exit")) {
-        return COMMAND_EXIT;
-    }
-    return COMMAND_UNDEF;
+    return false;
 }
-
-/* void command_pipe(struct command **obejct, int commandum) {
-    int fd[2];
-    int status;
-
-    status = pipe(fd);
-    for (int i = 0; i < commandnum; i = i + 1) {
-    
-        if (i == commandnum - 2) {
-            foo_pipe((&object)[i],fd[0],true));
-        }
-        else {
-            dup2(fd[1],foo_pipe((&object)[i],fd[0],false));
-            dup2(fd[0],foo_pipe((&object)[i+1],fd[1],false));
-        }
-            
-    }
-
-    return;
-}*/
-
 
 void modsys(struct command **object,int commandnum) {
     pid_t PID;
@@ -61,21 +33,37 @@ void modsys(struct command **object,int commandnum) {
 
 
     if (commandnum == 1) {
+        char* dir = (char *)malloc(buffsize * sizeof(char));
+        strcat(dir,"/bin/");
+        strcat(dir,(*object)[0].args[0]);
+
         if (!strcmp((*object)[0].args[0],"pwd") || !strcmp((*object)[0].args[0],"cd") || !strcmp((*object)[0].args[0],"exit")) {
             external_modsys(object,true);
             return;
         }
-        
-        char* dir = (char *)malloc(buffsize * sizeof(char));
-        strcat(dir,"/bin/");
-        strcat(dir,(*object)[0].args[0]);
-        PID = fork();
-        if (PID == 0) {
-            execv(dir,(*object)[0].args);
+
+        if (background(object)) {
+            PID = fork();
+            if (PID == 0) {
+                execv(dir,(*object)[0].args);
+                perror("Error: ");
+            }
+            else {
+                return;
+            }
+
         }
+
         else {
-            wait(&PID);
-            fprintf(stderr, "+ completed '%s': [%d]\n", (*object)[0].args[0], EXIT_SUCCESS);
+            PID = fork();
+            if (PID == 0) {
+                execv(dir,(*object)[0].args);
+                perror("Error: ");
+            }
+            else {
+                wait(&PID);
+                fprintf(stderr, "+ completed '%s': [%d]\n", (*object)[0].args[0], EXIT_SUCCESS);
+            }
         }
     }
 
