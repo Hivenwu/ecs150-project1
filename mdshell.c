@@ -120,6 +120,7 @@ void printcontent(struct command **object,int commandnum) {
             printf("%s -- ",(*object)[i].args[k]);
         }
         printf("\n");
+        printf("argument num is %d\n",(*object)[i].argc);
     }
         
     
@@ -131,21 +132,75 @@ void printcontent(struct command **object,int commandnum) {
 
 int main(int argc, char *argv[])
 {
+    int num = 0;
+    int status;
     int commandnum;
+    int* bgpid_array = (int *)malloc(100*sizeof(int));
+    int currentjob = 0;
+    bool running = false;
     size_t buffsize = 512;
+    struct job* joblist  = (struct job*)malloc(sizeof(struct job));
     char *input = (char *)malloc(buffsize * sizeof(char));
 
     while (1) {
-        printf("$sshell: ");
+        struct job* currentnode = joblist;
+        while (currentnode->next != NULL) {
+            currentnode = currentnode -> next;
+        }
+
         struct command *list;
+        printf("$sshell: ");
         getline(&input,&buffsize,stdin);   //Get user command
-        
         commandnum = pipesize(input);
         parse(&list,input,commandnum);
         //printcontent(&list,commandnum);
         //The switch statement is used to determine which command-line operation to run.
-        modsys(&list,commandnum);
+        if (currentjob == 0) {
+            modsys(&list,commandnum,&bgpid_array,&currentjob,currentnode,true);
+        }
+        else {
+            modsys(&list,commandnum,&bgpid_array,&currentjob,currentnode,false);
+        }
+        
+        //printcontent(&list,commandnum);
         memset(input,0,buffsize); 
+
+        currentnode = joblist;
+        /* /while (currentnode->next != NULL && currentnode->handle == false) {
+            printf("Id is %d\n",currentnode->processid);
+            currentnode = currentnode -> next;
+        }
+        currentnode = joblist;*/
+
+        if (currentjob == 1) {
+            if (waitpid(-1,&status,WNOHANG) != 0 && currentnode->handle == false) {
+                //printf("process id is %d and",currentnode->processid);
+                fprintf(stderr, "process id is %d and + completed '%s': [%d]\n", currentnode->processid,currentnode->args[0], EXIT_SUCCESS);
+                printf("hi\n");
+                currentnode->handle = true;
+            }
+        }
+        
+        else if(currentjob > 1) {
+            currentnode = joblist;
+            while (currentnode->next != NULL) {
+             if (waitpid(-1,&status,WNOHANG) != 0 && currentnode->handle == false) {
+                //printf("process id is %d and",currentnode->processid);
+                fprintf(stderr, "process id is %d and + completed '%s %s&': [%d]\n",currentnode->processid, currentnode->args[0],currentnode->args[1], EXIT_SUCCESS);
+                currentnode->handle = true;
+            }
+           
+            if (currentjob == 1) {
+               break;
+            }
+            currentnode = currentnode -> next;
+            }
+             if (waitpid(-1,&status,WNOHANG) != 0 && currentnode->handle == false) {
+                //printf("process id is %d and",currentnode->processid);
+                fprintf(stderr, "process id is %d and + completed '%s %s&': [%d]\n",currentnode->processid, currentnode->args[0],currentnode->args[1], EXIT_SUCCESS);
+                currentnode->handle = true;
+            }
+        }
     }
 
     return EXIT_SUCCESS;

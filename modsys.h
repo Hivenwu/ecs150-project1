@@ -7,18 +7,15 @@ struct command {
     bool background;
 };
 
-enum execu_type {
-    COMMAND_DATE,
-    COMMAND_LS,
-    COMMAND_PWD,
-    COMMAND_EXIT,
-    COMMAND_CD,
-    COMMAND_UNDEF,
+struct job {
+    char** args;
+    struct job* next;
+    pid_t processid;
+    bool handle;
 };
 
 
-enum execu_type execu_determine(struct command **object,int commandnum);
-void modsys(struct command **object,int commandnum);
+void modsys(struct command **object,int commandnum,int** bgpid_command,int* currentjob,struct job* current,bool first);
 void external_modsys(struct command **object,bool print);
 void pipe_recur(struct command **obejct,int** pid_array,int pipei,int commandi,int commandnum);
 

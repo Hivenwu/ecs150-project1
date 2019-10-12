@@ -7,21 +7,23 @@
 #include "modsys.h"
 #define buffsize 100
 
+
+
 bool background(struct  command **object) {
     for (int i = 1; i < (*object)[0].argc - 1; i = i + 1) {
         for (int k = 0; k < strlen((*object)[0].args[i]); k++) {
-            if ((*object)[0].args[i][k] == '&') {
+             if ((*object)[0].args[i][k] == '&') {
                 (*object)[0].args[i][k] = '\0';
                 (*object)[0].args[i][k+1] = 0;
                 return true;
-            }
+             }
         }
     }
 
     return false;
 }
 
-void modsys(struct command **object,int commandnum) {
+void modsys(struct command **object,int commandnum,int** bgpid_array,int* currentjob,struct job* current,bool first) {
     pid_t PID;
     int status;
     int exitcode;
@@ -42,13 +44,37 @@ void modsys(struct command **object,int commandnum) {
             return;
         }
 
-        if (background(object)) {
+         if (background(object)) {
+            
             PID = fork();
             if (PID == 0) {
                 execv(dir,(*object)[0].args);
                 perror("Error: ");
             }
             else {
+                *currentjob = *currentjob + 1;
+                if (first == true) {
+                    (*current).processid = PID;
+                    (*current).args = (char**)malloc(((*object)[0].argc)*sizeof(char*));
+                    (*current).handle = false; 
+                    for (int i = 0; i < (*object)[0].argc - 1; i = i + 1) {
+                        (*current).args[i] = (char*)malloc(strlen((*object)[0].args[i])*sizeof(char));
+                        strcpy((*current).args[i],(*object)[0].args[i]);
+                    }
+                }
+                else {
+                    struct job* nextnode = (struct job*)malloc(sizeof(struct job));
+                    (*nextnode).processid = PID;
+                    (*nextnode).args = (char**)malloc(((*object)[0].argc)*sizeof(char*));
+                    (*nextnode).handle = false; 
+                    for (int i = 0; i < (*object)[0].argc - 1; i = i + 1) {
+                        (*nextnode).args[i] = (char*)malloc(strlen((*object)[0].args[i])*sizeof(char));
+                        strcpy((*nextnode).args[i],(*object)[0].args[i]);
+                    }
+                    nextnode -> next = NULL;
+                    current->next = nextnode;
+                }
+
                 return;
             }
 
@@ -61,7 +87,7 @@ void modsys(struct command **object,int commandnum) {
                 perror("Error: ");
             }
             else {
-                wait(&PID);
+                waitpid(PID,&status,WUNTRACED);
                 fprintf(stderr, "+ completed '%s': [%d]\n", (*object)[0].args[0], EXIT_SUCCESS);
             }
         }
