@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
     char *input = (char *)malloc(buffsize * sizeof(char));
 
     while (1) {
-        currentnode = joblist;
+        currentnode = joblist; 
         struct command *list;
         printf("sshell$ ");
         getline(&input,&buffsize,stdin);   //Get user command
@@ -163,7 +163,6 @@ int main(int argc, char *argv[])
             modsys(&list,commandnum,userinput,&currentjob,currentnode,false);
         }
         currentnode = joblist;
-        waitforbackground(&currentjob,&list,currentnode,input,true);
         memset(userinput,0,buffsize);
         memset(input,0,buffsize); 
     }
