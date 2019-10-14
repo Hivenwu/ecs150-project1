@@ -54,7 +54,7 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
                 else if (command_detect && !arg_detect){
                     arg_detect = true;
                 }
-                else if (command_detect && arg_detect && args[0] != ' ') {
+                else if (command_detect && arg_detect && args[0] != ' ' && strlen(args)!= 0) {
                     (*object)[objecti].args[argnum] = malloc(512*sizeof(char));
                     strcpy((*object)[objecti].args[argnum],args);
                     memset(args,0,strlen(args));
@@ -75,8 +75,28 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
                     commandi = commandi + 1;
                 }
                 else if (command_detect && arg_detect) {
-                    args[argsi] = command_token[i];
-                    argsi = argsi + 1;
+                    if (((command_token[i]) == '>' || (command_token[i]) == '<')) {
+                        if (strlen(args) != 0) {
+                            (*object)[objecti].args[argnum] = malloc(512*sizeof(char));
+                            (*object)[objecti].args[argnum+1] = malloc(512*sizeof(char));
+                            strcpy((*object)[objecti].args[argnum],args);
+                            (*object)[objecti].args[argnum+1][0] = command_token[i];
+                            (*object)[objecti].args[argnum+1][1] = '\0';
+                            argnum = argnum + 2;
+                        }
+                        else {
+                            (*object)[objecti].args[argnum] = malloc(512*sizeof(char));
+                            (*object)[objecti].args[argnum][0] = command_token[i];
+                            (*object)[objecti].args[argnum][1] = '\0';
+                            argnum = argnum + 1;
+                        }
+                        memset(args,0,strlen(args));
+                        argsi = 0;
+                    }
+                    else {
+                        args[argsi] = command_token[i];
+                        argsi = argsi + 1;
+                    }
                 }
             }
         }
@@ -115,7 +135,7 @@ void printcontent(struct command **object,int commandnum) {
         printf("Command is %s and",(*object)[i].args[0]);
         printf("Argument is ");
         for (int k = 1; k < (*object)[i].argc; k++) {
-            printf("%s -- ",(*object)[i].args[k]);
+            printf("%s--",(*object)[i].args[k]);
         }
         printf("\n");
         printf("argument num is %d\n",(*object)[i].argc);
@@ -141,6 +161,7 @@ int main(int argc, char *argv[])
     struct job* currentnode;
     joblist->handle = true;
     char *input = (char *)malloc(buffsize * sizeof(char));
+    
 
     while (1) {
         currentnode = joblist; 

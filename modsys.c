@@ -37,6 +37,7 @@ bool inout_re(struct command** object,struct job* current,int index,int* current
             int filein = open((*object)[index].args[j+1],O_RDONLY); //Input redirection start
             if (filein < 0){
                 perror("Couldn't open the input source file.");
+                exit(0);
             }
             lseek(filein, 0, SEEK_SET);
             dup2(filein,STDIN_FILENO);
@@ -57,6 +58,7 @@ bool inout_re(struct command** object,struct job* current,int index,int* current
 
             if (fileout < 0){
                 perror("Couldn't open the output destination file.");
+                exit(0);
             }
             lseek(fileout, 0, SEEK_CUR);
             dup2(fileout,STDOUT_FILENO);
@@ -65,11 +67,11 @@ bool inout_re(struct command** object,struct job* current,int index,int* current
         }
     }
 
-
                 if (redir) {
                     execv(dir,args);
                     perror("Error");
                     printcompletemes(input,EXIT_FAILURE,current,false,false,0,NULL);
+                    exit(errno);
                 }
                 else {
                     return false;
@@ -79,11 +81,16 @@ bool inout_re(struct command** object,struct job* current,int index,int* current
     return false;
 }
 
-void addnode(struct command **object,struct job* current,char* userinput,bool first,pid_t PID) {
+void addnode(struct command **object,struct job* current,char* userinput,bool first,pid_t PID,int index,int* exitcode,bool pipe) {
     if (first == true) {
         (*current).input = (char*)malloc(cmdsize*sizeof(char));
+        (*current).exitcode_arr = (int*)malloc(cmdsize*sizeof(int));
+        for (int i = 0; i < index; i++) {
+            (*current).exitcode_arr[i] =  exitcode[i];
+        }
         strcpy((*current).input,userinput);
         (*current).processid = PID;
+        (*current).pipe = pipe;
         (*current).args = (char**)malloc(((*object)[0].argc)*sizeof(char*));
         (*current).argc = (*object)[0].argc;
         (*current).handle = false; 
@@ -99,8 +106,13 @@ void addnode(struct command **object,struct job* current,char* userinput,bool fi
         }
         struct job* nextnode = (struct job*)malloc(sizeof(struct job));
         (*nextnode).input = (char*)malloc(cmdsize*sizeof(char));
+        (*nextnode).exitcode_arr= (int*)malloc(cmdsize*sizeof(int));
+        for (int i = 0; i < index; i++) {
+            (*nextnode).exitcode_arr[i] =  exitcode[i];
+        }
         strcpy((*nextnode).input,userinput);
         (*nextnode).processid = PID;
+        (*nextnode).pipe = pipe;
         (*nextnode).args = (char**)malloc(((*object)[0].argc)*sizeof(char*));
         (*nextnode).argc = (*object)[0].argc;
         (*nextnode).handle = false; 
@@ -115,8 +127,25 @@ void addnode(struct command **object,struct job* current,char* userinput,bool fi
 
 void printcompletemes(char* input,int exitcode,struct job* current,bool background,bool pipe,int commandnum,int* exitcode_arr) {
     if (background) {
-        (*current).input[strlen((*current).input)-1] = '\0';
-        fprintf(stderr,"+ completed '%s' [%d]\n",(*current).input,exitcode);
+        if ((*current).pipe) {
+            (*current).input[strlen((*current).input)-1] = '\0';
+            fprintf(stderr,"+ completed '%s' ",(*current).input);
+            printf("fuck!");
+            for (int i = 0; i < commandnum - 1;i++) {
+                
+                if (i == commandnum - 2) {
+                    fprintf(stderr,"[%d]\n",(*current).exitcode_arr[i]);
+                }
+                else {
+                    fprintf(stderr,"[%d]",(*current).exitcode_arr[i]);
+                }
+            }
+        }
+        else {
+            (*current).input[strlen((*current).input)-1] = '\0';
+            fprintf(stderr,"+ completed '%s' [%d]\n",(*current).input,exitcode);
+        }
+        
     }
     else if (pipe) {
         input[strlen(input)-1] = '\0';
@@ -225,12 +254,13 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
                 }
                 execv(dir,(*object)[0].args);
                 perror("Error: ");
+                exit(errno);
             }
             else {
                 waitpid(-1,&status,WNOHANG);
                 exitcode = WEXITSTATUS(status);
                 *currentjob = *currentjob + 1;
-                addnode(object,current,input,first,PID);
+                addnode(object,current,input,first,PID,0,NULL,false);
                 return;
             }
 
@@ -250,6 +280,7 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
                 }   
                 execv(dir,(*object)[0].args);
                 perror("Error: ");
+                exit(errno);
             }
             else {
                 waitpid(PID,&status,0);
@@ -273,7 +304,7 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
         }
 
         int* exitcode = (int*)malloc(commandnum*sizeof(int));
-        pipe_recur(object,current,currentjob,&pid_array,0,0,commandnum,input,exitcode,first);
+        pipe_recur(object,current,currentjob,&pid_array,commandnum,input,exitcode,first);
 
         return;
     }
@@ -282,7 +313,7 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
 }
 
 
-bool pipe_recur(struct command **object,struct job* current,int* currentjob,int** pid_array,int pipei,int commandi,int commandnum,char* input,int* exitcode,bool first) {
+bool pipe_recur(struct command **object,struct job* current,int* currentjob,int** pid_array,int commandnum,char* input,int* exitcode,bool first) {
     bool background = false;
     int status;
     int t = 0;
@@ -326,6 +357,7 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
                 }
                 strcat(dir2,(*object)[i].args[0]);
                 execvp(dir2,(*object)[i].args);
+                perror("Error");
                 exit(errno);
             }
             else {
@@ -338,17 +370,13 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
                     exit(1);
                 }
                 execvp(dir2,(*object)[i].args);
+                perror("Error");
                 exit(errno);
             }
             
         }
         else{
             (*pid_array)[i] = PID;
-            if (checkbackground(object,i) && i == commandnum - 1) {
-                *currentjob = *currentjob + 1;
-                addnode(object,current,input,first,PID);
-                background = true;
-            }
         }
         while (t <= i - 1) {
             close(fd[t][1]);
@@ -362,8 +390,15 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
         waitpid((*pid_array)[k],&status,0);
         exitcode[k] = WEXITSTATUS(status);
     }
+
+    if (checkbackground(object,commandnum-1)) {
+        *currentjob = *currentjob + 1;
+        addnode(object,current,input,first,PID,commandnum-1,exitcode,true);
+        background = true;
+    }
     if (!background) {
-        waitpid(PID,&status,0); 
+        waitpid(PID,&status,0);
+        exitcode[commandnum-1] = WEXITSTATUS(status);
         printcompletemes(input,EXIT_SUCCESS,NULL,false,true,commandnum,exitcode);
     }        
 
