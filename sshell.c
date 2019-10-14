@@ -27,9 +27,9 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
     int commandi = 0;
     int objecti = 0;
     int argnum = 1;
+    bool commandcopied = false;
     bool arg_detect = false;
     bool command_detect = false;
-    bool space_detect = false;
 
     args = (char *)malloc(buffnum * sizeof(char));
     command = (char *)malloc(buffnum * sizeof(char));
@@ -71,8 +71,23 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
                     commandi = commandi + 1;
                 }
                 else if (command_detect && !arg_detect) {
-                    command[commandi] = command_token[i];
-                    commandi = commandi + 1;
+                    if (((command_token[i]) == '>' || (command_token[i]) == '<')) {
+                        (*object)[objecti].args[0] = malloc(512*sizeof(char));
+                        (*object)[objecti].args[1] = malloc(512*sizeof(char));
+                        strcpy((*object)[objecti].args[0],command);
+                        (*object)[objecti].args[1][0] = command_token[i];
+                        (*object)[objecti].args[1][1] = '\0';
+                        memset(args,0,strlen(args));
+                        arg_detect = true;
+                        commandcopied = true;
+                        argnum = argnum + 1;
+                        argsi = 0;
+                    }
+                    else {
+                        command[commandi] = command_token[i];
+                        commandi = commandi + 1;
+                    }
+                    
                 }
                 else if (command_detect && arg_detect) {
                     if (((command_token[i]) == '>' || (command_token[i]) == '<')) {
@@ -100,8 +115,11 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
                 }
             }
         }
-        (*object)[objecti].args[0] = malloc(512*sizeof(char));
-        strcpy((*object)[objecti].args[0],command);
+        if (!commandcopied){
+            (*object)[objecti].args[0] = malloc(512*sizeof(char));
+            strcpy((*object)[objecti].args[0],command);
+        }
+        
 
         if (strcmp(args,"")) {
             (*object)[objecti].args[argnum] = malloc(512*sizeof(char));
@@ -123,7 +141,6 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
         argsi = 0;
         command_detect = false;
         arg_detect = false;
-        space_detect = false;
 		command_token = strtok(NULL, "|");
     }
     return;
@@ -150,12 +167,8 @@ void printcontent(struct command **object,int commandnum) {
 
 int main(int argc, char *argv[])
 {
-    int num = 0;
-    int status;
     int commandnum;
-    int* bgpid_array = (int *)malloc(100*sizeof(int));
     int currentjob = 0;
-    bool running = false;
     size_t buffsize = 512;
     struct job* joblist  = (struct job*)malloc(sizeof(struct job));
     struct job* currentnode;
@@ -164,7 +177,7 @@ int main(int argc, char *argv[])
     
 
     while (1) {
-        currentnode = joblist; 
+        currentnode = joblist;  
         struct command *list;
         printf("sshell$ ");
         getline(&input,&buffsize,stdin);   //Get user command
@@ -183,7 +196,6 @@ int main(int argc, char *argv[])
         else {
             modsys(&list,commandnum,userinput,&currentjob,currentnode,false);
         }
-        currentnode = joblist;
         memset(userinput,0,buffsize);
         memset(input,0,buffsize); 
     }
