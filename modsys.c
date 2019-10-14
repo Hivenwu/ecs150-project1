@@ -10,6 +10,75 @@
 #define buffsize 100
 #define cmdsize 512
 
+
+bool inout_re(struct command** object,struct job* current,int index,int* currentjob,char* input) {
+    int breaknum;
+    int redir = false;
+    waitforbackground(currentjob,object,current,input,false);
+    char** args;
+    char* dir = (char *)malloc(buffsize * sizeof(char));
+    strcat(dir,"/bin/");
+    strcat(dir,(*object)[index].args[0]);
+    args = malloc(cmdsize*sizeof(char*));
+    for (int i = 0; i <= (*object)[index].argc; i++) {
+        args[i] = (char*)malloc(cmdsize*sizeof(char));
+    }
+    for (int j = 0; j < (*object)[index].argc - 1; j = j + 1) {
+        if (!strcmp((*object)[index].args[j],"<")) {
+            redir = true;
+            for (int i = 0; i < (*object)[index].argc; i++) {
+                if (!strcmp((*object)[index].args[i],"<")) {
+                    breaknum = i;
+                    break;
+                }
+                strcpy(args[i],(*object)[index].args[i]);
+            }
+            args[breaknum] = NULL;
+            int filein = open((*object)[index].args[j+1],O_RDONLY); //Input redirection start
+            if (filein < 0){
+                perror("Couldn't open the input source file.");
+            }
+            lseek(filein, 0, SEEK_SET);
+            dup2(filein,STDIN_FILENO);
+            close(filein); //INPUTREDIRECTION END
+            break;
+        }
+        else if (!strcmp((*object)[index].args[j],">")) {
+            redir = true;
+            for (int i = 0; i < (*object)[index].argc; i ++) {
+                if (!strcmp((*object)[index].args[i],">")) {
+                    breaknum = i;
+                    break;
+                }
+                strcpy(args[i],(*object)[index].args[i]);
+            }
+            args[breaknum] = NULL;
+            int fileout = open((*object)[index].args[j+1], O_RDWR|O_CREAT|O_APPEND, 0644);
+
+            if (fileout < 0){
+                perror("Couldn't open the output destination file.");
+            }
+            lseek(fileout, 0, SEEK_CUR);
+            dup2(fileout,STDOUT_FILENO);
+            close(fileout);
+            break;
+        }
+    }
+
+
+                if (redir) {
+                    execv(dir,args);
+                    perror("Error");
+                    printcompletemes(input,EXIT_FAILURE,current,false,false,0,NULL);
+                }
+                else {
+                    return false;
+                }
+                
+                
+    return false;
+}
+
 void addnode(struct command **object,struct job* current,char* userinput,bool first,pid_t PID) {
     if (first == true) {
         (*current).input = (char*)malloc(cmdsize*sizeof(char));
@@ -62,6 +131,9 @@ void printcompletemes(char* input,int exitcode,struct job* current,bool backgrou
         }
     }
     else {
+        if (!strcmp(input,"\n")) {
+            return;
+        }
         input[strlen(input)-1] = '\0';
         fprintf(stderr,"+ completed '%s' [%d]\n",input,exitcode);
     }
@@ -136,13 +208,6 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
 
     if (commandnum == 1) {
         char* dir = (char *)malloc(buffsize * sizeof(char));
-        char** args;
-
-        args = malloc(cmdsize*sizeof(char*));
-        for (int i = 0; i <= (*object)[0].argc; i++) {
-            args[i] = (char*)malloc(cmdsize*sizeof(char));
-        }
-
         strcat(dir,"/bin/");
         strcat(dir,(*object)[0].args[0]);
 
@@ -172,72 +237,19 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
         }
 
         else {
+            
             PID = fork();
             if (PID == 0) {
-                int breaknum;
-                waitforbackground(currentjob,object,current,input,false);
-
-                for (int j = 0; j < (*object)[0].argc - 1; j = j + 1) {
-                if (!strcmp((*object)[0].args[j],"<")){
-                    
-                    redir = true;
-
-                    for (int i = 0; i < (*object)[0].argc; i++) {
-                        if (!strcmp((*object)[0].args[i],"<")) {
-                            breaknum = i;
-                            break;
-                        }
-                        strcpy(args[i],(*object)[0].args[i]);
-                    }
-                    args[breaknum] = NULL;
-                    write(STDIN_FILENO,(*object)[0].args[j+1],strlen((*object)[0].args[j+1]));
-                    //int filein = open((*object)[0].args[j+1],O_RDONLY); //Input redirection start
-
-                    //if (filein < 0){
-                    //    perror("Error: Couldn't open the input source file.");
-                   //
-
-                }
-                else if (!strcmp((*object)[0].args[j],">")){
-                   redir = true;
-
-                    for (int i = 0; i < (*object)[0].argc; i ++) {
-                        if (!strcmp((*object)[0].args[i],">")) {
-                            break;
-                        }
-                        strcpy(args[i],(*object)[0].args[i]);
-                    }
-                    
-                    
-                    int fileout = open((*object)[0].args[j+1], O_RDWR|O_CREAT|O_APPEND, 0644);
-
-                    if (fileout < 0){
-                        perror("Couldn't open the output destination file.");
-                    }
-                    lseek(fileout, 0, SEEK_CUR);
-                    dup2(fileout,STDOUT_FILENO);
-                    close(fileout);
-                    }
-                }
-
+                inout_re(object,current,0,currentjob,input);
                 if ((*object)[0].argc >= 18) {
                     perror("Error");
                     return;
                 }
-                else if (!strcmp(input,"\n")) {
-                    return; 
-                }
-
-                if (redir) {
-                    execv(dir,args);
-                }
-                else {
-                    execv(dir,(*object)[0].args);
-                }
-                
-                
-                perror("Error");
-                printcompletemes(input,EXIT_FAILURE,current,false,false,0,NULL);
+                if (!strcmp(input,"\n")) {
+                    exit(0);
+                }   
+                execv(dir,(*object)[0].args);
+                perror("Error: ");
             }
             else {
                 waitpid(PID,&status,0);
@@ -293,7 +305,6 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
                 close(fd[i-1][1]);
                 dup2(fd[i-1][0],STDIN_FILENO);
                 close(fd[i-1][0]);
-                
             }
             else {
                 close(fd[i-1][1]);
@@ -305,7 +316,7 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
             }
             
             if (i == commandnum - 1) {
-                strcat(dir2,(*object)[i].args[0]);
+                inout_re(object,current,i,currentjob,input);
                 if ((*object)[i].argc >= 18) {
                     perror("Error: too many process arguments\n");
                     exit(1);
@@ -313,10 +324,14 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
                 if (!checkbackground(object,i)) {
                     waitforbackground(currentjob,object,current,input,false);
                 }
+                strcat(dir2,(*object)[i].args[0]);
                 execvp(dir2,(*object)[i].args);
                 exit(errno);
             }
             else {
+                if (i == 0) {
+                    inout_re(object,current,i,currentjob,input);
+                }
                 strcat(dir2,(*object)[i].args[0]);
                 if ((*object)[i].argc >= 18) {
                     perror("Error: too many process arguments\n");
@@ -334,7 +349,6 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
                 addnode(object,current,input,first,PID);
                 background = true;
             }
-            
         }
         while (t <= i - 1) {
             close(fd[t][1]);
@@ -349,7 +363,7 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
         exitcode[k] = WEXITSTATUS(status);
     }
     if (!background) {
-        waitpid(PID,&status,0);
+        waitpid(PID,&status,0); 
         printcompletemes(input,EXIT_SUCCESS,NULL,false,true,commandnum,exitcode);
     }        
 

@@ -17,6 +17,7 @@ struct job {
     bool handle;
 };
 
+bool inout_re(struct command** object,struct job* current,int index,int* currentjob,char* input);
 void addnode(struct command **object,struct job* current,char* userinput,bool first,pid_t PID);
 bool checkbackground(struct  command **object,int index);
 void printcompletemes(char* input,int exitcode,struct job* current,bool background,bool pipe,int commandnum,int* exitcode_arr);
