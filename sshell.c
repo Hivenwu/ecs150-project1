@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <stdbool.h>
+#include <fcntl.h>
 #include "modsys.h"
 #define buffnum 512
 
@@ -42,9 +43,7 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
     }
 
     char* command_token = strtok(input, "|"); 
-	
-	// Keep printing tokens while one of the 
-	// delimiters present in str[]. 
+
 	while (command_token != NULL) {
         int len = strlen(command_token);
         for (int i = 0; i < len; i++) {
@@ -146,6 +145,59 @@ void parse(struct command **object,char* input,int commandnum) { //Parse user's 
     return;
 }
 
+bool input_errordetect(struct command** object, char* input, int commandnum) {
+
+    for (int i = 0; i < commandnum; i++) {
+        if ((*object)[i].argc >= 18) {
+            fprintf(stderr,"Error: too many process arguments\n");
+            return true;
+        }
+
+        if (((*object)[i].argc == 0 || strlen((*object)[i].args[0]) <= 1) && strcmp(input,"\n")) {
+            fprintf(stderr,"Error: missing command\n");
+            return true;
+        } 
+        for (int j = 0; j < (*object)[i].argc - 1; j = j + 1) {
+            if (!strcmp((*object)[i].args[j],"&")) {
+                fprintf(stderr,"Error: mislocated background sign\n");
+                return true;
+            }
+            if (!strcmp((*object)[i].args[j],"<")) {
+                if (i != 0) {
+                    fprintf(stderr,"Error: mislocated input redirection\n");
+                    return true;
+                }
+                if ((*object)[i].args[j+1] == NULL) {
+                    fprintf(stderr,"Error: no input file\n");
+                    return true;
+                }
+                int filein = open((*object)[i].args[j+1],O_RDONLY);
+                if (filein < 0) {
+                    fprintf(stderr,"Error: cannot open input file\n");
+                    return true;
+                }
+            }
+            else if (!strcmp((*object)[i].args[j],">")) {
+                if (i != commandnum - 1) {
+                    fprintf(stderr,"Error: mislocated output redirection\n");
+                    return true;
+                }
+                if ((*object)[i].args[j+1] == NULL) {
+                    fprintf(stderr,"Error: no output file\n");
+                    return true;
+                }
+                int fileout = open((*object)[i].args[j+1],O_RDWR|O_CREAT|O_APPEND, 0644);
+                if (fileout < 0) {
+                    fprintf(stderr,"Error: cannot open output file\n");
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false; 
+}
+
 void printcontent(struct command **object,int commandnum) {
     printf("commandnm is %d\n",commandnum);
     for (int i = 0; i < commandnum; i++){
@@ -190,11 +242,13 @@ int main(int argc, char *argv[])
         commandnum = pipesize(input);
         parse(&list,input,commandnum);
         //printcontent(&list,commandnum);
-        if (currentjob == 0) {
-            modsys(&list,commandnum,userinput,&currentjob,currentnode,true);
-        }
-        else {
-            modsys(&list,commandnum,userinput,&currentjob,currentnode,false);
+        if (!input_errordetect(&list,input,commandnum)) {
+            if (currentjob == 0) {
+                modsys(&list,commandnum,userinput,&currentjob,currentnode,true);
+            }
+            else {
+                modsys(&list,commandnum,userinput,&currentjob,currentnode,false);
+            }
         }
         memset(userinput,0,buffsize);
         memset(input,0,buffsize); 

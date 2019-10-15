@@ -24,15 +24,6 @@ bool inout_re(struct command** object,struct job* current,int index,int commandn
     }
     for (int j = 0; j < (*object)[index].argc - 1; j = j + 1) {
         if (!strcmp((*object)[index].args[j],"<")) {
-            if (ispipe && index != 0) {
-                fprintf(stderr,"Error: mislocated output redirection\n");
-                return true;
-            }
-            if ((*object)[index].args[j+1] == NULL) {
-                fprintf(stderr,"Error: no input file\n");
-                exit(1);
-            }
-            
             redir = true;
             for (int i = 0; i < (*object)[index].argc; i++) {
                 if (!strcmp((*object)[index].args[i],"<")) {
@@ -43,29 +34,12 @@ bool inout_re(struct command** object,struct job* current,int index,int commandn
             }
             args[breaknum] = NULL;
             int filein = open((*object)[index].args[j+1],O_RDONLY); //Input redirection start
-
-            
-            if (filein < 0){
-                fprintf(stderr,"Error: cannot open input file\n");
-                exit(0);
-            }
             lseek(filein, 0, SEEK_SET);
             dup2(filein,STDIN_FILENO);
             close(filein); //INPUTREDIRECTION END
             break;
         }
         else if (!strcmp((*object)[index].args[j],">")) {
-
-            if (ispipe && index != commandnum - 1) {
-                fprintf(stderr,"Error: mislocated input redirection\n");
-                return true;
-            }
-            if ((*object)[index].args[j+1] == NULL) {
-                fprintf(stderr,"Error: no output file\n");
-                exit(1);
-            }
-            
-
             redir = true;
             for (int i = 0; i < (*object)[index].argc; i ++) {
                 if (!strcmp((*object)[index].args[i],">")) {
@@ -76,12 +50,6 @@ bool inout_re(struct command** object,struct job* current,int index,int commandn
             }
             args[breaknum] = NULL;
             int fileout = open((*object)[index].args[j+1], O_RDWR|O_CREAT|O_APPEND, 0644);
-            if (fileout < 0){
-                fprintf(stderr,"Error: cannot open output file\n");
-                exit(1);
-            }
-            
-
             lseek(fileout, 0, SEEK_CUR);
             dup2(fileout,STDOUT_FILENO);
             close(fileout);
@@ -167,10 +135,6 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
         if (checkbackground(object,0)) {
             PID = fork();
             if (PID == 0) {
-                if ((*object)[0].argc >= 18) {
-                    fprintf(stderr,"Error: too many process arguments\n");
-                    return;
-                }
                 execv(dir,(*object)[0].args);
                 perror("Error: ");
                 exit(errno);
@@ -185,20 +149,10 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
         }
 
         else {
-            for (int i = 0; i < commandnum; i++) {
-                if ((*object)[i].argc == 0) {
-                    fprintf(stderr,"Error: missing command\n");
-                    return;
-                } 
-            }
             PID = fork();
             if (PID == 0) {
                 waitforbackground(currentjob,object,current,input,false);
                 inout_re(object,current,0,commandnum,currentjob,input,false);
-                if ((*object)[0].argc >= 18) {
-                    fprintf(stderr,"Error: too many process arguments\n");
-                    return;
-                }
                 if (!strcmp(input,"\n")) {
                     exit(0);
                 }   
@@ -216,13 +170,6 @@ void modsys(struct command **object,int commandnum,char* input,int* currentjob,s
     }
 
     else {
-        for (int i = 0; i < commandnum; i++) {
-            if ((*object)[i].argc == 0) {
-                fprintf(stderr,"Error: missing command\n");
-                return;
-            } 
-        }
-
         int* exitcode = (int*)malloc(commandnum*sizeof(int));
         pipe_recur(object,current,currentjob,&pid_array,commandnum,input,exitcode,first);
 
@@ -271,10 +218,6 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
                 if (inout_re(object,current,i,commandnum,currentjob,input,true)) {
                     exit(1);
                 }
-                if ((*object)[i].argc >= 18) {
-                    fprintf(stderr,"Error: too many process arguments\n");
-                    exit(1);
-                }
                 if (!checkbackground(object,i)) {
                     waitforbackground(currentjob,object,current,input,false);
                 }
@@ -290,10 +233,6 @@ bool pipe_recur(struct command **object,struct job* current,int* currentjob,int*
                     }
                 }
                 strcat(dir2,(*object)[i].args[0]);
-                if ((*object)[i].argc >= 18) {
-                    fprintf(stderr,"Error: too many process arguments\n");
-                    exit(1);
-                }
                 execvp(dir2,(*object)[i].args);
                 perror("Error");
                 exit(errno);
